@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#10100f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Interregno 2D">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Interregno — Echi dell'Oro</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080a0d;color:#eee;font-family:Georgia,serif;touch-action:none}canvas{display:block;width:100vw;height:100dvh;image-rendering:pixelated;background:#131715}
+#hud{position:fixed;top:calc(env(safe-area-inset-top) + 9px);left:10px;pointer-events:none;width:min(52vw,290px);text-shadow:1px 1px #000}
+.bar{height:10px;border:1px solid #b6a98a;background:#272522;margin-bottom:4px;box-shadow:0 1px #000}.fill{height:100%;width:100%}#hp{background:#9e3031}#fp{background:#4e7399}#st{background:#b5a34f}
+#stats{font:10px monospace;letter-spacing:1px;color:#dfd0aa;margin-top:4px}
+#hint{position:fixed;top:22%;width:100%;text-align:center;color:#f0d79a;text-shadow:2px 2px #000;font-size:clamp(12px,3vw,18px);pointer-events:none}
+#boss{display:none;position:fixed;bottom:calc(env(safe-area-inset-bottom) + 94px);left:15%;width:70%;pointer-events:none}#bossname{text-align:center;font:10px monospace;letter-spacing:2px;margin-bottom:4px;color:#ead8b4;text-shadow:1px 1px #000}#bossbar{height:8px;border:1px solid #c3aa7c;background:#231b1a}#bossfill{height:100%;width:100%;background:#852d2d}
+#controls{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 12px);left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 12px;pointer-events:none}
+.group{display:flex;gap:6px;align-items:flex-end;pointer-events:auto}.btn{width:49px;height:49px;border-radius:9px;border:1px solid #9d855c;background:rgba(19,21,21,.8);color:#f1d9a0;font:bold 18px monospace;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none}.btn.big{width:57px;height:57px;border-radius:50%}.btn.red{background:rgba(96,31,30,.84)}.btn.blue{background:rgba(34,56,69,.85)}
+#overlay{position:fixed;inset:0;background:rgba(3,5,5,.78);display:flex;align-items:center;justify-content:center;padding:18px;z-index:10}
+.panel{width:min(540px,100%);border:1px solid #9c8152;background:linear-gradient(145deg,#262820,#0b0e0d);padding:24px 20px;text-align:center;box-shadow:0 0 0 4px #080a09,0 20px 70px #000}
+h1{font-size:clamp(27px,7vw,43px);font-weight:normal;letter-spacing:2px;color:#e4c782;margin:0 0 5px}.eyebrow{font:10px monospace;letter-spacing:3px;color:#b3a78b;margin-bottom:18px}p{font-size:14px;line-height:1.5;color:#d1cec2}.small{font:10px monospace;color:#9b9a8d}button.start{width:100%;margin-top:10px;padding:13px;background:#59482a;color:#f8e8c2;border:1px solid #d2ae67;font:inherit}
+@media(min-width:800px){#controls{max-width:900px;left:50%;right:auto;width:100%;transform:translateX(-50%)}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div class="bar"><div class="fill" id="hp"></div></div><div class="bar"><div class="fill" id="fp"></div></div><div class="bar"><div class="fill" id="st"></div></div><div id="stats">LIVELLO 1 · RUNE <span id="runes">0</span> · FIALE <span id="flasks">3</span></div></div>
+<div id="hint"></div>
+<div id="boss"><div id="bossname">CUSTODE DELLA RADURA</div><div id="bossbar"><div id="bossfill"></div></div></div>
+<div id="controls">
+ <div class="group"><div class="btn" data-a="left">◀</div><div class="btn" data-a="right">▶</div></div>
+ <div class="group"><div class="btn" data-a="heal">✚</div><div class="btn blue" data-a="roll">↗</div><div class="btn red big" data-a="attack">⚔</div><div class="btn" data-a="jump">↑</div><div class="btn" data-a="interact">✦</div></div>
+</div>
+<div id="overlay"><div class="panel"><h1>INTERREGNO</h1><div class="eyebrow">ECHI DELL'ORO · SOULSLIKE 2D</div><p>Un regno spezzato, una luce antica e una corona senza padrone. Esplora le terre, trova i luoghi di grazia, raccogli rune e affronta il Custode della Radura.</p><p class="small">TOUCH: ◀ ▶ movimento · ⚔ attacco · ↗ schivata · ↑ salto · ✚ cura · ✦ riposa<br>TASTIERA: A/D o frecce, J attacca, K schiva, E riposa, H cura, spazio salta</p><button class="start" id="start">ENTRA NELLE TERRE SPEZZATE</button><p class="small">Avventura originale ispirata ai giochi action-RPG soulslike. Nessun asset ufficiale.</p></div></div>
+<script>
+(()=> {
+const cv=document.querySelector('canvas'),c=cv.getContext('2d');let VW=480,VH=270,cam=0,last=0,running=false,dead=false,won=false;
+function resize(){const d=Math.min(2,devicePixelRatio||1);cv.width=innerWidth*d;cv.height=innerHeight*d;let s=Math.min(cv.width/VW,cv.height/VH);c.setTransform(s,0,0,s,(cv.width-VW*s)/2,(cv.height-VH*s)/2);c.imageSmoothingEnabled=false}addEventListener('resize',resize);resize();
+let key={},touch={};const saveId='interregno-2d-save-v1';let save={grace:0,runes:0,boss:false};try{save=Object.assign(save,JSON.parse(localStorage.getItem(saveId)||'{}'))}catch(e){}
+const worldW=2500;
+const ground=[{x:0,y:226,w:400},{x:450,y:226,w:300},{x:800,y:226,w:350},{x:1200,y:226,w:300},{x:1550,y:226,w:360},{x:1970,y:226,w:530},{x:570,y:178,w:90},{x:900,y:168,w:100},{x:1300,y:184,w:100},{x:1740,y:178,w:110},{x:2120,y:180,w:100}];
+const p={x:65,y:190,w:13,h:25,vx:0,vy:0,face:1,hp:100,st:100,fp:100,flasks:3,runes:save.runes||0,ifr:0,atk:0,atkcd:0,roll:0,jump:0};
+const foes=[
+ {x:320,y:194,w:17,h:32,hp:55,max:55,kind:0,cd:25,hit:0,dead:false,home:320},
+ {x:690,y:194,w:18,h:32,hp:75,max:75,kind:1,cd:35,hit:0,dead:false,home:690},
+ {x:1050,y:194,w:17,h:32,hp:55,max:55,kind:0,cd:35,hit:0,dead:false,home:1050},
+ {x:1450,y:194,w:20,h:33,hp:90,max:90,kind:1,cd:45,hit:0,dead:false,home:1450}
+];
+const boss={x:2220,y:180,w:30,h:46,hp:260,max:260,cd:55,hit:0,dead:!!save.boss};
+let sparks=[];
+function store(){localStorage.setItem(saveId,JSON.stringify({grace:save.grace,runes:p.runes,boss:boss.dead}))}
+function platformLand(oldY){for(const g of ground){if(p.x+p.w>g.x&&p.x<g.x+g.w&&p.y+p.h>=g.y&&oldY+p.h<=g.y+3&&p.vy>=0){p.y=g.y-p.h;p.vy=0;p.jump=0}}}
+function message(t){document.querySelector('#hint').textContent=t}
+function respawn(){p.x=save.grace?1190:65;p.y=190;p.vx=p.vy=0;p.hp=100;p.st=100;p.flasks=3;p.ifr=45;dead=false;document.querySelector('#overlay').style.display='none';running=true;loop(performance.now())}
+function start(){if(dead){respawn();return}running=true;document.querySelector('#overlay').style.display='none';last=performance.now();requestAnimationFrame(loop)}
+document.querySelector('#start').onclick=start;
+function action(a){touch[a]=true;if(!running)return;if(a==='attack'&&p.atkcd<=0&&p.st>=17){p.atk=11;p.atkcd=23;p.st-=17}if(a==='roll'&&p.st>=24&&p.roll<=0){p.roll=11;p.ifr=14;p.st-=24;p.vx=p.face*4.5}if(a==='jump'&&p.jump===0&&p.vy===0){p.vy=-5.4;p.jump=1}if(a==='heal'&&p.flasks>0&&p.hp<100){p.flasks--;p.hp=Math.min(100,p.hp+42);p.fp=Math.max(0,p.fp-5)}if(a==='interact')interact()}
+document.querySelectorAll('.btn').forEach(b=>{const a=b.dataset.a;b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);action(a)});b.addEventListener('pointerup',()=>touch[a]=false);b.addEventListener('pointercancel',()=>touch[a]=false)});
+addEventListener('keydown',e=>{let k=e.key.toLowerCase();key[k]=true;if([' ','arrowleft','arrowright','arrowup'].includes(k))e.preventDefault();if(e.repeat)return;if(k==='j')action('attack');if(k==='k')action('roll');if(k===' ')action('jump');if(k==='h')action('heal');if(k==='e')interact()});addEventListener('keyup',e=>key[e.key.toLowerCase()]=false);
+function interact(){if(Math.abs(p.x-1190)<75){save.grace=1;p.hp=100;p.st=100;p.flasks=3;p.runes+=5;store();message('LUOGO DI GRAZIA · RIPOSO E SALVATAGGIO');setTimeout(()=>message(''),1800)}else if(Math.abs(p.x-70)<70){p.hp=100;p.st=100;p.flasks=3;message('IL FUOCO RICORDA');setTimeout(()=>message(''),1200)}}
+function hurt(n,src){if(p.ifr>0||dead)return;p.hp-=n;p.ifr=35;p.vx=p.x<src?-2.6:2.6;p.vy=-2.2;if(p.hp<=0){p.hp=0;dead=true;running=false;const ov=document.querySelector('#overlay');ov.style.display='flex';ov.querySelector('h1').textContent='SEI CADUTO';ov.querySelector('.eyebrow').textContent='LE TERRE TI ATTENDONO';ov.querySelector('p').textContent='Le rune perdute non sono svanite per sempre. Ritorna al luogo di grazia e ritenta.';ov.querySelector('button').textContent='RITORNA AL LUOGO DI GRAZIA'}}
+function strike(e,damage){if(e.dead||p.atk<=0||e.hit>0)return;let inFront=p.face>0?p.x+p.w<e.x+8&&p.x+p.w+26>e.x:p.x>e.x-26&&p.x<e.x+e.w+8;if(Math.abs(p.y-e.y)<31&&inFront){e.hp-=damage;e.hit=16;e.x+=p.face*7;for(let i=0;i<6;i++)sparks.push({x:e.x+e.w/2,y:e.y+12,vx:(Math.random()-.5)*3,vy:-Math.random()*2,life:16});if(e.hp<=0){e.dead=true;p.runes+=e===boss?180:(e.kind?45:25);store();if(e===boss){won=true;running=false;const ov=document.querySelector('#overlay');ov.style.display='flex';ov.querySelector('h1').textContent='L'+'ORO RITORNA';ov.querySelector('.eyebrow').textContent='IL CUSTODE È CADUTO';ov.querySelector('p').textContent='Hai superato la Radura e spezzato il giuramento del Custode. La tua avventura può continuare.';ov.querySelector('button').textContent='RICOMINCIA';ov.querySelector('button').onclick=()=>{localStorage.removeItem(saveId);location.reload()}}}}}
+function update(dt){if(!running)return;const left=key.a||key.arrowleft||touch.left,right=key.d||key.arrowright||touch.right,oldY=p.y;if(left){p.vx-=.45*dt;p.face=-1}if(right){p.vx+=.45*dt;p.face=1}if(!left&&!right)p.vx*=Math.pow(.76,dt);p.vx=Math.max(-2.2,Math.min(2.2,p.vx));if(p.roll>0){p.roll-=dt;p.vx=p.face*4.2}p.vy+=.28*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;platformLand(oldY);p.x=Math.max(0,Math.min(worldW-p.w,p.x));if(p.y>VH+60)hurt(120,p.x);p.ifr=Math.max(0,p.ifr-dt);p.atk=Math.max(0,p.atk-dt);p.atkcd=Math.max(0,p.atkcd-dt);p.st=Math.min(100,p.st+.34*dt);
+for(const e of foes){if(e.dead)continue;e.cd-=dt;e.hit=Math.max(0,e.hit-dt);let dx=p.x-e.x;if(Math.abs(dx)<130){if(Math.abs(dx)>23){e.x+=Math.sign(dx)*(.38+e.kind*.12)*dt}else if(e.cd<=0){hurt(e.kind?17:11,e.x);e.cd=e.kind?53:43}}strike(e,e.kind?25:29)}
+if(!boss.dead&&p.x>1870){document.querySelector('#boss').style.display='block';boss.cd-=dt;boss.hit=Math.max(0,boss.hit-dt);let dx=p.x-boss.x;if(Math.abs(dx)>34)boss.x+=Math.sign(dx)*.48*dt;else if(boss.cd<=0){hurt(24,boss.x);boss.cd=56}}strike(boss,24);if(boss.dead)document.querySelector('#boss').style.display='none';
+cam=Math.max(0,Math.min(worldW-VW,p.x-VW*.37));document.querySelector('#hp').style.width=p.hp+'%';document.querySelector('#st').style.width=p.st+'%';document.querySelector('#fp').style.width=p.fp+'%';document.querySelector('#runes').textContent=p.runes;document.querySelector('#flasks').textContent=p.flasks;document.querySelector('#bossfill').style.width=Math.max(0,boss.hp/boss.max*100)+'%';
+if(Math.abs(p.x-1190)<85)message('✦ TOCCA ✦ PER RIPOSARE AL LUOGO DI GRAZIA');else if(p.x>1900&&!boss.dead)message('IL CUSTODE DELLA RADURA TI HA SCOPERTO');else message('');
+sparks.forEach(s=>{s.x+=s.vx;s.y+=s.vy;s.vy+=.1;s.life--});sparks=sparks.filter(s=>s.life>0)}
+function R(x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function knight(x,y,w,h,kind,face,flash=false){let armor=flash?'#fff1d1':kind===2?'#33302c':kind===1?'#393e3c':'#55534c',edge=kind===2?'#b49a62':'#88806a';R(x+3,y+7,w-6,h-8,armor);R(x+2,y+10,w-4,4,edge);R(x+3,y+17,3,8,'#191b1a');R(x+w-6,y+17,3,8,'#191b1a');R(x+3,y+h-5,4,5,'#181918');R(x+w-7,y+h-5,4,5,'#181918');R(x+3,y,w-6,9,kind===2?'#474036':'#5f5b50');R(x+5,y+3,w-10,2,'#c6b68a');R(x+(face>0?w-7:4),y+4,3,2,'#e7c36d');if(kind===2){R(x-4,y+12,6,14,edge);R(x+w-2,y+12,6,14,edge);R(x+w/2-2,y-5,4,6,'#d4b778')}}
+function draw(){c.clearRect(-10,-10,500,300);R(0,0,VW,VH,'#141a17');
+// distant hills, ruins and golden tree
+for(let i=0;i<12;i++){let x=((i*78-cam*.18)%700+700)%700-40;R(x,92+(i%3)*9,40,140,'#202722');R(x-5,85+(i%3)*9,50,8,'#2c3229');R(x+12,66+(i%4)*6,3,22,'#343a2c')}
+let treeX=1610-cam*.2;R(treeX,22,7,125,'#8b783e');for(let i=0;i<7;i++){R(treeX-35+i*10,18+(i%3)*9,28,4,'#c3a95a');R(treeX-23+i*8,9+(i%2)*8,4,22,'#8f8648')}
+for(const g of ground){let x=g.x-cam;if(x<-150||x>VW+100)continue;R(x,g.y,g.w,45,'#292c27');R(x,g.y,g.w,4,'#777052');for(let j=0;j<g.w;j+=19)R(x+j,g.y+9,10,2,'#393b31')}
+for(let i=0;i<8;i++){let x=((i*107-cam*.6)%600+600)%600;R(x,220,2,6,'#514537')}
+// grace sites
+for(const gx of [70,1190]){let x=gx-cam;R(x-11,216,22,10,'#574c37');R(x-6,208,12,8,'#a48b4c');R(x-2,195,4,15,'#d6ad52');R(x-1,189,2,8,'#f3db9b')}
+for(const e of foes){if(e.dead)continue;knight(e.x-cam,e.y,e.w,e.h,e.kind,e.x<p.x?1:-1,e.hit>0);R(e.x-cam-3,e.y-7,24,3,'#171715');R(e.x-cam-3,e.y-7,24*Math.max(0,e.hp/e.max),3,'#a33131')}
+if(!boss.dead)knight(boss.x-cam,boss.y,boss.w,boss.h,2,boss.x<p.x?1:-1,boss.hit>0);
+knight(p.x-cam,p.y,p.w,p.h,0,p.face,p.ifr>0&&Math.floor(performance.now()/75)%2===0);
+if(p.atk>0){let ax=p.face>0?p.x-cam+p.w:p.x-cam-25;R(ax,p.y+10,25,3,'#ded5b8');R(ax+(p.face>0?18:3),p.y+7,4,7,'#fff0c9')}
+for(const s of sparks)R(s.x-cam,s.y,2,2,'#e9c678');R(0,0,VW,3,'#080b09');R(0,VH-3,VW,3,'#080b09')}
+function loop(t){if(!running)return;let dt=Math.min(2,(t-last)/16.67||1);last=t;update(dt);draw();if(running)requestAnimationFrame(loop)}
+draw();
+})();
+</script>
+<script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script>
+</body></html>

@@ -1,0 +1,11 @@
+{
+  "name": "Interregno — Echi dell'Oro",
+  "short_name": "Interregno 2D",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#080a0d",
+  "theme_color": "#10100f",
+  "description": "Avventura soulslike originale in 2D pixel art per iPhone."
+}
